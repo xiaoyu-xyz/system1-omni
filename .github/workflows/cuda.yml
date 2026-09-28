@@ -1,0 +1,150 @@
+name: CUDA
+
+# Three tiers, because they have different requirements. See
+# src/backends/cuda/contract.md.
+#
+#   contract   - Tier 1. No GPU. Checks that every backend's manifest is honest
+#                and that a validated backend declares a tolerance and a
+#                reference entrypoint. Runs on an everyday runner.
+#   discover   - not a tier: turns the manifests into the matrix for `compile`.
+#   compile    - Tier 2. No GPU. Builds each backend with nvcc in a CUDA
+#                container, so a kernel that stops compiling cannot land.
+#   parity     - Tier 3. Needs a GPU. Runs each declared reference entrypoint on
+#                a self-hosted runner labelled `gpu`.
+#
+# The previous state of this repository was a CPU-only workflow that could not
+# compile CUDA or check numerics, which #14's validation report records as a
+# limitation. Tier 1 and Tier 2 remove the first half; Tier 3 removes the second.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/backends/cuda/**'
+      - '.github/workflows/cuda.yml'
+  pull_request:
+    paths:
+      - 'src/backends/cuda/**'
+      - '.github/workflows/cuda.yml'
+  workflow_dispatch:
+    inputs:
+      cuda_image:
+        description: 'CUDA devel image used by the compile job'
+        required: false
+        default: 'nvidia/cuda:13.0.1-devel-ubuntu24.04'
+      backend:
+        description: 'Restrict the parity job to one backend name (blank = all)'
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+env:
+  CUDA_IMAGE: ${{ github.event.inputs.cuda_image || 'nvidia/cuda:13.0.1-devel-ubuntu24.04' }}
+
+jobs:
+  contract:
+    name: Backend contract (no GPU)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Contract checker unit tests
+        run: python -m unittest discover -s src/backends/cuda/tests -t . -v
+      - name: Check every backend manifest
+        run: python src/backends/cuda/check_contract.py --repo-root .
+
+  discover:
+    name: Discover buildable backends
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      matrix: ${{ steps.discover.outputs.matrix }}
+      count: ${{ steps.discover.outputs.count }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Build the compile matrix from the manifests
+        id: discover
+        run: |
+          matrix=$(python src/backends/cuda/discover_buildable.py --repo-root . 2>/dev/null)
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+          count=$(python -c "import json,sys; print(len(json.loads(sys.argv[1])['include']))" "$matrix")
+          echo "count=$count" >> "$GITHUB_OUTPUT"
+          echo "compile-checkable backends: $count"
+
+  compile:
+    name: Compile ${{ matrix.name }}
+    needs: discover
+    if: needs.discover.outputs.count != '0'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # The tag is not verified from the authoring machine (no Docker access), so
+    # it is overridable through the `cuda_image` dispatch input. Two things to
+    # check on the first real run: that the tag exists, and that this image
+    # carries a Node runtime new enough for actions/checkout, which container
+    # jobs require. If it does not, check out with a `run:` step using git
+    # instead of the action.
+    container:
+      image: ${{ github.event.inputs.cuda_image || 'nvidia/cuda:13.0.1-devel-ubuntu24.04' }}
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.discover.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: Toolchain
+        run: nvcc --version
+      - name: Build ${{ matrix.name }}
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/${{ matrix.name }}"
+          mkdir -p "$out"
+          cd "${{ matrix.dir }}"
+          # The contract requires the script to be executable in git, so this
+          # does not chmod it: a fresh clone that cannot run it is a real failure
+          # that check_contract.py already reports clearly. chmod here would hide
+          # it and quietly repair arbitrary files.
+          # The repository-relative argument only matters for scripts that read
+          # one; a script that ignores it still builds with its declared default.
+          "./${{ matrix.script }}" "$out" "${{ matrix.default_arch }}"
+          test -f "$out/${{ matrix.output }}"
+          echo "built $out/${{ matrix.output }}"
+      - name: Record the image that built it
+        run: echo "$CUDA_IMAGE built ${{ matrix.output }} for sm_${{ matrix.default_arch }}"
+
+  parity:
+    name: GPU parity (self-hosted)
+    runs-on: [self-hosted, gpu]
+    # A fork or a clone without a GPU runner skips this instead of hanging: the
+    # job only runs where the repository actually has a runner labelled `gpu`.
+    if: ${{ github.repository_owner == 'ThinkFlowLab' }}
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v5
+      - name: Provenance
+        run: |
+          nvidia-smi
+          nvcc --version || echo "nvcc not on PATH"
+      - name: Run the declared parity references
+        env:
+          ONLY_BACKEND: ${{ github.event.inputs.backend }}
+        run: |
+          set -euo pipefail
+          args=(--repo-root . --json "$RUNNER_TEMP/parity.json")
+          if [ -n "$ONLY_BACKEND" ]; then
+            args+=(--only "$ONLY_BACKEND")
+          fi
+          python3 src/backends/cuda/run_gpu_parity.py "${args[@]}"
+      - name: Upload the parity report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cuda-parity-report
+          path: ${{ runner.temp }}/parity.json
+          if-no-files-found: warn
