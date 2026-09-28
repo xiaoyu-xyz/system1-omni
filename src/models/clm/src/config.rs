@@ -33,6 +33,9 @@ impl HeadConfig {
     }
 }
 
+/// The reference's cap on `exp(logit_scale)`.
+pub const MAX_SCALE: f32 = 100.0;
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Config {
     pub head: HeadConfig,
@@ -89,8 +92,14 @@ impl Config {
         Ok(Self { head, logit_scale })
     }
 
-    /// `exp(logit_scale)`: the multiplicative constant on the cosine similarity.
+    /// `exp(logit_scale)`, capped as the reference caps it.
+    ///
+    /// `heads.py` computes `exp(logit_scale).clamp(max=100.0)`, and the published
+    /// checkpoint's `logit_scale` is 4.6132, whose exponential is 100.82 — so the cap
+    /// binds and the effective scale is 100, not 100.82. Without it every probability is
+    /// off by about 0.8 %, which is what the end-to-end comparison against the reference
+    /// caught; no CPU-side oracle can, because both sides of those share this constant.
     pub fn scale(&self) -> f32 {
-        self.logit_scale.exp()
+        self.logit_scale.exp().min(MAX_SCALE)
     }
 }

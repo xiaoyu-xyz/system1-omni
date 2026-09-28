@@ -124,7 +124,10 @@ def main() -> None:
         proj = int(md["projection_dim"])
         width = cfg["width"]
         blocks = cfg["depth"] - 2
-        scale = float(np.exp(np.float32(md["logit_scale"])))
+        # The reference caps this: heads.py does exp(logit_scale).clamp(max=100.0),
+        # and the published checkpoint's 4.6132 exponentiates to 100.82, so the cap
+        # binds. Without it every probability is about 0.8 % off.
+        scale = min(float(np.exp(np.float32(md["logit_scale"]))), 100.0)
         state = load_head(f, "state_head", width, proj, hidden, blocks)
         action = load_head(f, "action_head", width, proj, hidden, blocks)
 
