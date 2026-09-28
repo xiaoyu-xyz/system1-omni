@@ -139,7 +139,7 @@ fn layer_norm(x: &mut [f32], weight: &[f32], bias: &[f32]) {
 }
 
 /// Project one embedding through a head, returning the L2-normalised vector.
-fn project(head: &Head, cfg: &crate::config::HeadConfig, x: &[f32]) -> Result<Vec<f32>> {
+pub fn project(head: &Head, cfg: &crate::config::HeadConfig, x: &[f32]) -> Result<Vec<f32>> {
     ensure!(
         x.len() == cfg.hidden_size,
         "embedding has {} values, the head expects {}",
