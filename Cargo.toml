@@ -1,0 +1,3 @@
+[workspace]
+members = ["src/frontend", "src/models/laya"]
+resolver = "3"
