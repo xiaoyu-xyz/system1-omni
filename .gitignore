@@ -24,3 +24,6 @@ target
 .venv/
 __pycache__/
 .DS_Store
+
+# Fetched by tests/differential/fetch_upstream.py; someone else's source.
+src/models/kev/tests/differential/upstream_model.py
