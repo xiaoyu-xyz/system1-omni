@@ -65,20 +65,13 @@ jobs:
           apt-get update
           apt-get install -y --no-install-recommends python3 python3-pip
           python3 -m pip install --no-cache-dir --break-system-packages tilelang==0.1.14
-      - name: (probe) how TileLang picks a target
+      - name: (probe) TileLang auto target
         run: |
           P=$(python3 -c "import tilelang,os;print(os.path.dirname(tilelang.__file__))")
-          echo "----- target.py -----"
-          sed -n '1,120p' "$P/backend/target.py"
-          echo "----- which explicit strings validate -----"
-          python3 - <<'PY'
-          from tilelang.backend.target import determine_target
-          for cand in [{"kind": "cuda", "arch": "sm_90a"}, {"kind": "cuda", "arch": "sm_90"}, "cuda"]:
-              try:
-                  print("OK   %-22r -> %s" % (cand, determine_target(cand)))
-              except Exception as error:
-                  print("FAIL %-22r -> %s: %s" % (cand, type(error).__name__, str(error)[:100]))
-          PY
+          echo "----- target.py from 118 -----"
+          sed -n '118,240p' "$P/backend/target.py"
+          echo "----- auto_detect_target() -----"
+          python3 -c "from tilelang.backend.target import auto_detect_target as a; print(repr(a()))" 2>&1 | tail -6
       - name: Compile every declared backend
         # Each backend is built the way the contract says it must be: run its
         # own build script with an output directory and a compute capability,
