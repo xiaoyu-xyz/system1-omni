@@ -65,13 +65,6 @@ jobs:
           apt-get update
           apt-get install -y --no-install-recommends python3 python3-pip
           python3 -m pip install --no-cache-dir --break-system-packages tilelang==0.1.14
-      - name: (probe) TileLang auto target
-        run: |
-          P=$(python3 -c "import tilelang,os;print(os.path.dirname(tilelang.__file__))")
-          echo "----- target.py from 118 -----"
-          sed -n '118,240p' "$P/backend/target.py"
-          echo "----- auto_detect_target() -----"
-          python3 -c "from tilelang.backend.target import auto_detect_target as a; print(repr(a()))" 2>&1 | tail -6
       - name: Compile every declared backend
         # Each backend is built the way the contract says it must be: run its
         # own build script with an output directory and a compute capability,
@@ -80,7 +73,7 @@ jobs:
         # anywhere under src/backends/cuda/ is covered without editing CI.
         run: |
           python3 - <<'PY'
-          import glob, json, os, subprocess, sys, tempfile
+          import glob, hashlib, json, os, subprocess, sys, tempfile
 
           out = tempfile.mkdtemp(prefix="cuda-build-")
           manifests = sorted(glob.glob("src/backends/cuda/*.backend.json")
@@ -106,6 +99,9 @@ jobs:
               elif not os.path.isfile(os.path.join(target, build["output"])):
                   print("   %s was not produced" % build["output"], flush=True)
                   failed.append(name)
+              else:
+                  with open(os.path.join(target, build["output"]), "rb") as handle:
+                      print("   sha256 %s" % hashlib.sha256(handle.read()).hexdigest(), flush=True)
 
           if failed:
               sys.exit("did not build: " + ", ".join(failed))
