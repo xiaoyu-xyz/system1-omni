@@ -65,6 +65,11 @@ jobs:
           apt-get update
           apt-get install -y --no-install-recommends python3 python3-pip
           python3 -m pip install --no-cache-dir --break-system-packages tilelang==0.1.14
+      - name: (probe) how TileLang picks a target
+        run: |
+          P=$(python3 -c "import tilelang,os;print(os.path.dirname(tilelang.__file__))")
+          echo "tilelang at $P"
+          grep -rn "TILELANG_TARGET\|sm_50\|determine_target\|get_device_capability" "$P" --include=*.py | head -30
       - name: Compile every declared backend
         # Each backend is built the way the contract says it must be: run its
         # own build script with an output directory and a compute capability,
