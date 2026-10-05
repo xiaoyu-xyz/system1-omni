@@ -32,7 +32,7 @@
 // Bumped whenever the required interface below changes. The manifest repeats it
 // as `abi_version` and the checker compares the two, so the number lives here
 // once: a manifest that drifts from this macro is reported rather than trusted.
-/* removed for counterfactual */
+#define CS_SCORE_ABI_VERSION 1
 
 namespace {
 
