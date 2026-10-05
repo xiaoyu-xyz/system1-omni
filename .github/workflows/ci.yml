@@ -68,8 +68,17 @@ jobs:
       - name: (probe) how TileLang picks a target
         run: |
           P=$(python3 -c "import tilelang,os;print(os.path.dirname(tilelang.__file__))")
-          echo "tilelang at $P"
-          sed -n '100,175p' "$P/backend/target.py"
+          echo "----- target.py -----"
+          sed -n '1,120p' "$P/backend/target.py"
+          echo "----- which explicit strings validate -----"
+          python3 - <<'PY'
+          from tilelang.backend.target import determine_target
+          for cand in ["cuda -arch=sm_90a", "cuda -arch=sm_90", "cuda", "cuda -keys=sm_90a"]:
+              try:
+                  print("OK   %-22r -> %s" % (cand, determine_target(cand)))
+              except Exception as error:
+                  print("FAIL %-22r -> %s: %s" % (cand, type(error).__name__, str(error)[:100]))
+          PY
       - name: Compile every declared backend
         # Each backend is built the way the contract says it must be: run its
         # own build script with an output directory and a compute capability,
