@@ -73,7 +73,7 @@ jobs:
           echo "----- which explicit strings validate -----"
           python3 - <<'PY'
           from tilelang.backend.target import determine_target
-          for cand in ["cuda -arch=sm_90a", "cuda -arch=sm_90", "cuda", "cuda -keys=sm_90a"]:
+          for cand in [{"kind": "cuda", "arch": "sm_90a"}, {"kind": "cuda", "arch": "sm_90"}, "cuda"]:
               try:
                   print("OK   %-22r -> %s" % (cand, determine_target(cand)))
               except Exception as error:
