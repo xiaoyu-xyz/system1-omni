@@ -69,7 +69,7 @@ jobs:
         run: |
           P=$(python3 -c "import tilelang,os;print(os.path.dirname(tilelang.__file__))")
           echo "tilelang at $P"
-          grep -rn "TILELANG_TARGET\|sm_50\|determine_target\|get_device_capability" "$P" --include=*.py | head -30
+          sed -n '100,175p' "$P/backend/target.py"
       - name: Compile every declared backend
         # Each backend is built the way the contract says it must be: run its
         # own build script with an output directory and a compute capability,
