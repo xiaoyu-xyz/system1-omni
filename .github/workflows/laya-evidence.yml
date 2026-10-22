@@ -1,0 +1,42 @@
+name: Laya evidence
+on: pull_request
+
+jobs:
+  evidence:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    container: nvidia/cuda:13.0.0-devel-ubuntu24.04
+    steps:
+      - uses: actions/checkout@v5
+      - name: Toolchain
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends python3 python3-pip
+          python3 -m pip install --no-cache-dir --break-system-packages tilelang==0.1.14
+      - name: Export and compile twice, then compare the lowered source
+        run: |
+          set -euo pipefail
+          here=src/backends/cuda
+          export_once() {
+            label=$1
+            stage="$RUNNER_TEMP/stage-$label"
+            out="$RUNNER_TEMP/out-$label"
+            BUILD_STAGE="$stage" KEEP_STAGE=1 "$here/build.sh" "$out" 90
+            echo "== $label generated source"
+            sha256sum "$stage/generated.cu"
+            wc -l "$stage/generated.cu"
+            echo "== $label artifact"
+            cuobjdump --list-elf "$out/liblaya_cuda.so"
+            echo "== $label nvcc commands"
+            python3 -c "import json,sys;m=json.load(open(sys.argv[1]));print('arch:',m['arch']);[print('  '+' '.join(c)) for c in m['commands']]" "$out/build-manifest.json"
+          }
+          export_once 90a
+          sed -i 's/"arch": "sm_90a"/"arch": "sm_90"/' "$here/kernels/laya_tilelang.py" "$here/kernels/rope_selected.py"
+          export_once 90
+          echo "== lowering diff, sm_90 against sm_90a"
+          if diff -u "$RUNNER_TEMP/stage-90/generated.cu" "$RUNNER_TEMP/stage-90a/generated.cu" > "$RUNNER_TEMP/generated.diff"; then
+            echo "IDENTICAL: both targets lower to the same source"
+          else
+            wc -l "$RUNNER_TEMP/generated.diff"
+            head -60 "$RUNNER_TEMP/generated.diff"
+          fi
