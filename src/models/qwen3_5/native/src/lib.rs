@@ -3,3 +3,10 @@
 pub mod cuda;
 pub mod json;
 pub mod model;
+
+pub mod inputs;
+
+pub mod image_preprocess;
+pub mod vision;
+
+mod lora;

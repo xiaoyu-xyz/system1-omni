@@ -15,6 +15,14 @@ This skill produces a local report. It does not itself authorize edits, commits,
 pushes, GitHub comments, or changing a PR's review status. Follow any separate
 user instructions for those actions.
 
+## Confirm contributor intent
+
+First apply the canonical
+[human contributor-intent gate](../self-review/SKILL.md#human-contributor-intent-gate).
+It applies before implementation and submission, including draft PRs; reuse
+explicit human answers, ask only what is missing, and wait. Independent read-only
+review and automated review selection are outside this contributor gate.
+
 ## Establish the review scope
 
 - Inspect the branch, remotes, working-tree status, and PR target when available.
@@ -23,6 +31,10 @@ user instructions for those actions.
 - Record the head and base commit IDs. Review the complete diff from their merge
   base, plus staged, unstaged, and relevant untracked changes. State which changes
   are not yet part of the PR. Disclose if the remote base could not be refreshed.
+- Count changed authored-code lines separately from total diff size. Follow the
+  [contributor self-review guide](../../../CONTRIBUTING.md#self-review-before-requesting-review). Above 3,000,
+  require a full self-review, the contributor's split rationale and review map,
+  and component/integration validation; a quick precheck cannot establish readiness.
 - Read changed files and enough surrounding code and callers to understand the
   behavior; do not rely only on diff fragments.
 
@@ -30,6 +42,10 @@ user instructions for those actions.
 
 - Match the implementation to the stated problem. Flag unrelated changes, new
   unused code, duplicated logic, or abstractions without a current need.
+- Apply [committed artifact hygiene](../self-review/SKILL.md#committed-artifact-hygiene)
+  in every precheck, including quick checks. Account for retained fixtures and
+  flag redundant generated run output; verify cleanup preserves evidence and
+  does not break replay commands or documentation links.
 - Check ownership against the architecture contracts: transport, independent
   processing and scheduling, model-specific adapters and executors, and hardware
   operations. In the native target, Rust orchestrates host work and dispatch;
@@ -88,3 +104,4 @@ keeping the PR in draft while blocking findings remain. The contributor should
 review the report, address findings, rerun affected checks after changes, and
 complete the PR template checklist. Do not check boxes on the contributor's
 behalf or claim that agent review replaces contributor or maintainer review.
+
